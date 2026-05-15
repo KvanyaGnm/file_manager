@@ -9,6 +9,7 @@
 #include <chrono>
 #include <format>
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 
 namespace fs = std::filesystem;
@@ -115,7 +116,7 @@ int main() {
         if (state.active) {
             e |= bold | color(Color::Green);
         }
-    return e;
+        return e;
     };
     auto file_viewer = Menu(&state.file_lines, &state.file_viewer_dummy, opt);
     auto filenames_menu = Menu(&filenames, &state.selected_index, opt);
@@ -172,6 +173,20 @@ int main() {
                         state.file_viewer_dummy = 0;
                         read_file(next, state.file_lines);
                     }
+                }
+            }
+            return true;
+        }
+        if (e == Event::Character('e') || e == Event::Character('E')) {
+            if (state.selected_index >= 0 && state.selected_index < static_cast<int>(filenames.size())) {
+                auto name = filenames[state.selected_index];
+                fs::path next = state.current_path / name;
+                if (fs::exists(next) && !fs::is_directory(next) && name != "..") {
+                    screen.WithRestoredIO([&] {
+                        std::system(("nano \"" + next.string() + "\"").c_str());
+                    })();                      
+                    refresh_files(state);
+                    update_file_info(state, filenames, datetime);
                 }
             }
             return true;
