@@ -9,6 +9,7 @@
 #include <chrono>
 #include <format>
 #include <algorithm>
+#include <fstream>
 
 namespace fs = std::filesystem;
 using namespace ftxui;
@@ -21,9 +22,11 @@ struct Object {
 struct AppState {
     fs::path current_path;
     std::vector<Object> files;
-    int selected_index = 0;
+    int selected_index = 0, file_viewer_dummy = 0;
     int sort_type = 1;
     std::string error;
+    int text_display = 0;
+    std::vector<std::string> file_lines;
 };
 
 void refresh_files(AppState& state) {
@@ -86,6 +89,14 @@ void update_file_info(AppState& state, std::vector<std::string>& filenames, std:
     }
 }
 
+void read_file(const fs::path& filepath, std::vector<std::string>& file_lines){
+    file_lines.clear();
+    std::ifstream file(filepath);
+    std::string line;
+    while (std::getline(file, line)) {
+        file_lines.push_back(line);
+    }
+}
 
 int main() {
     AppState state;
@@ -95,20 +106,18 @@ int main() {
     
     update_file_info(state, filenames, datetime);
     auto screen = ScreenInteractive::Fullscreen();
-
+    Box window_box;
     auto opt = MenuOption::Vertical();
-    opt.entries_option.transform = [](const EntryState& state) {
-        Element e = text((state.active ? "> " : "  ") + state.label);
+    opt.entries_option.transform = [&](const EntryState& state) {
+
+        Element e = paragraph((state.active ? "> " : "  ") + state.label) | size(WIDTH, LESS_THAN, window_box.x_max - window_box.x_min);
         
         if (state.active) {
-            e |= bold;
+            e |= bold | color(Color::Green);
         }
-        if (!state.focused && !state.active) {
-            e |= dim;
-    }
     return e;
     };
-
+    auto file_viewer = Menu(&state.file_lines, &state.file_viewer_dummy, opt);
     auto filenames_menu = Menu(&filenames, &state.selected_index, opt);
     auto datetimes_menu = Menu(&datetime, &state.selected_index, opt);
     
@@ -122,12 +131,23 @@ int main() {
             screen.Exit();
             return true;
         }
+
+        if (state.text_display) {
+            if (e == Event::Backspace) {
+                state.text_display = 0;
+                return true;
+            }
+            return file_viewer->OnEvent(e);
+        }
+
+        
         if (e == Event::Backspace) {
             if (state.current_path != state.current_path.root_path()) {
                 state.current_path = state.current_path.parent_path();
                 refresh_files(state);
                 update_file_info(state, filenames, datetime);
             }
+            
             return true;
         }
         if (e == Event::Return) {
@@ -136,6 +156,7 @@ int main() {
                 if (name == "..") {
                     if (state.current_path != state.current_path.root_path()) {
                         state.current_path = state.current_path.parent_path();
+                        state.text_display = 0;
                         refresh_files(state);
                         update_file_info(state, filenames, datetime);
                     }
@@ -143,16 +164,20 @@ int main() {
                     fs::path next = state.current_path / name;
                     if (fs::exists(next) && fs::is_directory(next)) {
                         state.current_path = next;
+                        state.text_display = 0;
                         refresh_files(state);
                         update_file_info(state, filenames, datetime);
                     } else {
-                        state.error = "📄 Не директория: " + name;
+                        state.text_display = 1;
+                        state.file_viewer_dummy = 0;
+                        read_file(next, state.file_lines);
                     }
                 }
             }
             return true;
         }
         return false;
+
     });
 
     auto renderer = Renderer(component, [&] {
@@ -162,16 +187,19 @@ int main() {
             text(state.current_path.string()) | color(Color::Yellow),
         });
 
-        auto types = vbox({
-            text(" Имя ") | bold | dim,
-            filenames_menu->Render(),
-            
-        }) | flex;
-        auto data = vbox({
-            text(" Изменён ") | bold | dim,
-            datetimes_menu->Render() | flex,
-        });
-
+        Element file_list;
+        if (state.text_display){
+            file_list = vbox(file_viewer->Render()| frame | flex) | flex ;
+        }else{ 
+            file_list= hbox({vbox({
+                text(" Имя ") | bold | dim,
+                filenames_menu->Render() | flex
+            }) | flex, 
+            vbox({
+                text(" Изменён ") | bold | dim,
+                datetimes_menu->Render() | flex,
+            })}) | flex;
+        }
         auto status = state.error.empty() 
             ? text("OK") | color(Color::Green)
             : text(state.error) | color(Color::Red);
@@ -185,7 +213,7 @@ int main() {
             }) | bgcolor(Color::GrayDark) | color(Color::White),
         });
 
-        return vbox({header, hbox(types, data) | flex,  footer}) | flex;
+        return vbox({header, file_list,  footer}) | flex | reflect(window_box);
     });
 
     screen.Loop(renderer);
