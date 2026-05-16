@@ -12,7 +12,13 @@ FetchContent_Declare(ftxui
  
 FetchContent_MakeAvailable(ftxui)
  
-add_executable(FileManager main.cpp)
+add_executable(FileManager
+  src/main.cpp
+  src/file_operations.cpp
+  src/ui.cpp
+)
+target_include_directories(FileManager PRIVATE include)
+
 target_link_libraries(FileManager
   PRIVATE ftxui::screen
   PRIVATE ftxui::dom
