@@ -3,11 +3,15 @@
 #include <chrono>
 #include <format>
 #include <fstream>
+#include <filesystem>
+#include <cstdint>
+namespace fs = std::filesystem;
+
 
 void refresh_files(AppState& state) {
     state.files.clear();
     state.error.clear();
-    state.files.push_back({"..", });
+    state.files.push_back({"..", fs::file_time_type{}, 0});
 
     std::vector<Object> dirs, files;
     try {
@@ -18,10 +22,12 @@ void refresh_files(AppState& state) {
                 continue;
             }
             if (entry.is_directory()){
-                dirs.push_back({name, modif_time});
+                dirs.push_back({name, modif_time, 0});
             } 
             else {
-                files.push_back({name, modif_time});
+                uintmax_t sz = 0;
+                try { sz = fs::file_size(entry.path()); } catch (...) {}
+                files.push_back({name, modif_time, sz});
             }
         }
     } catch (const std::exception& e) {
@@ -49,17 +55,43 @@ void refresh_files(AppState& state) {
     state.files.insert(state.files.end(), files.begin(), files.end());
     state.selected_index = 0;
 }
-void update_file_info(AppState& state, std::vector<std::string>& filenames, std::vector<std::string>& datetime){
+void update_file_info(AppState& state, std::vector<std::string>& filenames, 
+std::vector<std::string>& datetime,
+std::vector<std::string>& sizes,
+std::vector<std::string>& formats){
     filenames.clear();
     datetime.clear();
+    sizes.clear();
+    formats.clear();
     for (auto& x : state.files){
-        filenames.push_back(std::move(x.name));
+        filenames.push_back(x.name);
 
         if (x.name != ".."){
             auto only_seconds = std::chrono::floor<std::chrono::seconds>(x.modification_time);
             datetime.push_back(std::format("{:%Y-%m-%d %H:%M:%S}", only_seconds));
-        }else{
+            if (x.size == 0) {
+              sizes.push_back("0 B");
+            } else {
+              
+              double s = static_cast<double>(x.size);
+              int u = 0;
+              const char* units[] = {"B", "KB", "MB", "GB", "TB"};
+              while (s >= 1024.0 && u < 4) { s /= 1024.0; u++; }
+              sizes.push_back(std::format("{:.1f} {}", s, units[u]));
+            }
+            std::string ext = x.name;
+            size_t dot = ext.find_last_of('.');
+            if (dot != std::string::npos && dot > 0) {
+              formats.push_back(ext.substr(dot));
+            }
+            else {
+              formats.push_back("-");
+            }
+            
+         }else {
             datetime.push_back("");
+            sizes.push_back("");
+            formats.push_back("");
         }
     }
 }

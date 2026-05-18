@@ -8,4 +8,6 @@
 ftxui::Component setup_ui(ftxui::ScreenInteractive& screen,
                             AppState& state,
                             std::vector<std::string>& filenames,
-                            std::vector<std::string>& datetime);
+                            std::vector<std::string>& datetime,
+                            std::vector<std::string>& sizes, 
+                            std::vector<std::string>& formats);

@@ -1,4 +1,3 @@
-
 #include "structures.h"
 #include "ui.h"
 #include "file_operations.h"
@@ -12,12 +11,12 @@ int main() {
     AppState state;
     state.current_path = std::filesystem::current_path();
     refresh_files(state);
-    std::vector<std::string> filenames, datetime;
+    std::vector<std::string> filenames, datetime, sizes, formats;
     
-    update_file_info(state, filenames, datetime);
+    update_file_info(state, filenames, datetime, sizes, formats);
     auto screen = ftxui::ScreenInteractive::Fullscreen();
     
-    auto setup = setup_ui(screen, state, filenames, datetime);
+    auto setup = setup_ui(screen, state, filenames, datetime, sizes, formats);
     screen.Loop(setup);
     return 0;
 }

@@ -2,12 +2,14 @@
 #include <filesystem>
 #include <vector>
 #include <string>
+#include <cstdint>
 
 namespace fs = std::filesystem;
 
 struct Object {
     std::string name;
     fs::file_time_type modification_time;
+    uintmax_t size = 0;
 };
 
 struct AppState {
@@ -19,3 +21,5 @@ struct AppState {
     int text_display = 0;
     std::vector<std::string> file_lines;
 };
+
+
